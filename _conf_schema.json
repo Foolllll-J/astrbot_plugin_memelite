@@ -1,9 +1,15 @@
 {
-    "need_prefix": {
-        "description": "启用触发前缀",
-        "hint": "启用后需要前缀或者@bot来触发meme",
+    "wake_only": {
+        "description": "仅对唤醒消息判定",
+        "hint": "开启后仅唤醒了bot的消息可触发meme",
         "type": "bool",
         "default": true
+    },
+    "prefix_only": {
+        "description": "仅唤醒前缀触发",
+        "hint": "开启后必须是唤醒前缀开头的命令才触发meme, 通过 @bot 发送的不触发",
+        "type": "bool",
+        "default": false
     },
     "extra_prefix": {
         "description": "'额外前缀",

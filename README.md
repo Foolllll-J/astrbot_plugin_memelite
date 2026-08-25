@@ -60,7 +60,8 @@ apt-get update && apt-get install -y libgl1 libglib2.0-0
 
 | 配置项              | 描述               | 默认值    |
 |---------------------|------------------|---------|
-| `need_prefix`       | 启用触发前缀，需要前缀或 @bot 才能触发 meme | `true` |
+| `wake_only`         | 仅对唤醒消息判定，关闭则对所有消息匹配 meme 关键词 | `true` |
+| `prefix_only`       | 仅在 wake_only 开启时有效；开启后必须以前缀(如 /关键词)开头才触发，屏蔽 @bot 触发 | `false` |
 | `extra_prefix`      | 额外前缀，填写后需附加该前缀才能触发，留空不启用 | `""` |
 | `fuzzy_match`       | 模糊匹配触发，消息中含关键词即可触发，易误触 | `false` |
 | `is_compress_image` | 压缩图片，限制生成图长宽不超过 512px 防刷屏 | `true` |

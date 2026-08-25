@@ -6,9 +6,11 @@ from astrbot import logger
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
 from astrbot.core import AstrBotConfig
+from astrbot.core import astrbot_config
 from astrbot.core.platform import AstrMessageEvent
 from astrbot.core.star.filter.event_message_type import EventMessageType
 
+from .core.avatar import AvatarManager
 from .core.meme import MemeManager
 from .core.param import ParamsCollector
 from .utils import compress_image
@@ -18,15 +20,24 @@ class MemePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.conf = config
-        self.collector = ParamsCollector(config)
+        self.avatar_manager = AvatarManager()
+        self.collector = ParamsCollector(config, self.avatar_manager)
         self.manager = MemeManager(config, self.collector)
         self._resource_task: asyncio.Task | None = None
 
     async def initialize(self):
         self._resource_task = asyncio.create_task(self.manager.check_resources())
 
-    @filter.command("meme帮助", alias={"表情帮助", "meme菜单", "meme列表"})
+    async def terminate(self):
+        if self._resource_task and not self._resource_task.done():
+            self._resource_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._resource_task
+        await self.avatar_manager.close()
+
+    @filter.command("meme列表", alias={"表情帮助", "meme菜单", "meme帮助"})
     async def memes_help(self, event):
+        """显示meme列表"""
         if output := await self.manager.render_meme_list_image():
             yield event.chain_result([Comp.Image.fromBytes(output)])
         else:
@@ -36,6 +47,7 @@ class MemePlugin(Star):
     async def meme_details_show(
         self, event: AstrMessageEvent, keyword: str | int | None = None
     ):
+        """meme详情 <名称>"""
         if not keyword:
             yield event.plain_result("未指定要查看的meme")
             return
@@ -57,7 +69,7 @@ class MemePlugin(Star):
     async def add_supervisor(
         self, event: AstrMessageEvent, meme_name: str | None = None
     ):
-        """禁用meme"""
+        """禁用meme <名称>"""
         if not meme_name:
             yield event.plain_result("未指定要禁用的meme")
             return
@@ -76,7 +88,7 @@ class MemePlugin(Star):
     async def remove_supervisor(
         self, event: AstrMessageEvent, meme_name: str | None = None
     ):
-        """启用meme"""
+        """启用meme <名称>"""
         if not meme_name:
             yield event.plain_result("未指定要禁用的meme")
             return
@@ -100,8 +112,14 @@ class MemePlugin(Star):
         """
         处理 meme 生成的主流程
         """
-        if self.conf["need_prefix"] and not event.is_at_or_wake_command:
+        if self.conf["wake_only"] and not event.is_at_or_wake_command:
             return
+        if self.conf["wake_only"] and self.conf["prefix_only"]:
+            # 仅在唤醒消息中进一步要求以唤醒前缀(如 /关键词)开头, 屏蔽 @bot 触发
+            prefixes = astrbot_config.get("wake_prefix", []) or []
+            raw = getattr(event.message_obj, "message_str", "") or event.message_str or ""
+            if not any(raw.startswith(p) for p in prefixes):
+                return
         if self.conf["extra_prefix"] and not event.message_str.startswith(
             self.conf["extra_prefix"]
         ):
@@ -139,11 +157,3 @@ class MemePlugin(Star):
 
         if image:
             yield event.chain_result([Comp.Image.fromBytes(image)])  # type: ignore
-
-    async def terminate(self):
-        """插件终止时清理调度器"""
-        if self._resource_task and not self._resource_task.done():
-            self._resource_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._resource_task
-        await self.collector.close()
